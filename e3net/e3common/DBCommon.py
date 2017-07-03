@@ -19,7 +19,7 @@ def bind_session_with_engine(engine=None):
 	if engine == None:
 		engine=E3DBEngine
 	E3DBSession.configure(bind=engine)
-def init_e3_database(conn,echo=False):
+def init_e3common_database(conn,echo=False):
 	global E3DBEngine
 	E3DBEngine=create_engine(conn,echo=echo)
 	bind_session_with_engine(E3DBEngine)

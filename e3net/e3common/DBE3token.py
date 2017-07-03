@@ -1,5 +1,5 @@
 #! /usr/bin/python
-from e3net.db.DBCommon import *
+from e3net.e3common.DBCommon import *
 from uuid import uuid4
 import json
 import hashlib
@@ -273,8 +273,8 @@ def clean_invalid_token():
 	finally:
 		session.close()
 if __name__=='__main__':
-	init_e3_database('mysql+pymysql://e3net:e3credientials@localhost/E3common',True)
-	#create_database_entries()
+	init_e3common_database('mysql+pymysql://e3net:e3credientials@localhost/E3common',True)
+	create_database_entries()
 	#print register_role('member')
 	#print register_role('admin',desc='administrator role')
 	#print register_role('__member__')
