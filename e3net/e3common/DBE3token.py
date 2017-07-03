@@ -5,7 +5,7 @@ import json
 import hashlib
 from datetime import datetime
 token_alive_time=30 #in minutes
-class Role(E3DBBase):
+class Role(E3COMMONDBBase):
 	__tablename__='role'
 	
 	id=Column(String(64),primary_key=True)
@@ -19,7 +19,7 @@ class Role(E3DBBase):
 		obj['description']=self.description
 		return str(obj)
 	
-class Tenant(E3DBBase):
+class Tenant(E3COMMONDBBase):
 	__tablename__='tenant'
 	
 	id=Column(String(64),primary_key=True)
@@ -39,7 +39,7 @@ class Tenant(E3DBBase):
 		obj['role_id']=self.role_id
 		return str(obj)
 
-class Token(E3DBBase):
+class Token(E3COMMONDBBase):
 	__tablename__='token'
 	id=Column(String(64),primary_key=True) # sha1.update(uuid) as token id
 	tenant_id=Column(String(64),ForeignKey('tenant.id'))
@@ -53,7 +53,7 @@ class Token(E3DBBase):
 		return str(obj)
 
 def register_role(role_name,desc=''):
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		role=Role()
@@ -70,7 +70,7 @@ def register_role(role_name,desc=''):
 	return True
 def get_roles():
 	roles=list()
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		roles=session.query(Role).all()
@@ -81,7 +81,7 @@ def get_roles():
 	return roles;
 def get_role_by_name(role_name):
 	role=None
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		role=session.query(Role).filter(Role.name==role_name).first()
@@ -92,7 +92,7 @@ def get_role_by_name(role_name):
 	return role
 def get_role_by_id(id):
 	role=None
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		role=session.query(Role).filter(Role.id==id).first()
@@ -113,7 +113,7 @@ def unregister_role(role_name):
 	role=get_role_by_name(role_name)
 	if role:
 		try:
-			session=E3DBSession()
+			session=E3COMMONDBSession()
 			session.begin()
 			session.delete(role)
 			session.commit()
@@ -123,7 +123,7 @@ def unregister_role(role_name):
 			session.close()
 
 def register_tenant(username,passwd,role_id=None,desc=''):
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tenant=Tenant()
@@ -146,7 +146,7 @@ def register_tenant(username,passwd,role_id=None,desc=''):
 
 def find_tenant_by_name(username):
 	tenant=None
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tenant=session.query(Tenant).filter(Tenant.name==username).first()
@@ -157,7 +157,7 @@ def find_tenant_by_name(username):
 	return tenant
 def get_tenant_by_id(id):
 	tenant=None
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tenant=session.query(Tenant).filter(Tenant.id==id).first()
@@ -168,7 +168,7 @@ def get_tenant_by_id(id):
 	return tenant
 def get_tenants():
 	lst=list()
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		lst=session.query(Tenant).all()
 	except:
@@ -177,7 +177,7 @@ def get_tenants():
 		session.close()
 	return lst
 def _change_tenant_status(id,status):
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tenant=session.query(Tenant).filter(Tenant.id==id).first()
@@ -197,7 +197,7 @@ def disable_tenant(id):
 	return _change_tenant_status(id,False)
 
 def unregister_tenant(id):
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tenant=session.query(Tenant).filter(Tenant.id==id).first()
@@ -212,7 +212,7 @@ def unregister_tenant(id):
 	return True
 def generate_token(username,passwd):
 	token_id=None
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tenant=session.query(Tenant).filter(Tenant.name==username).first()
@@ -222,7 +222,8 @@ def generate_token(username,passwd):
 			return None
 		token=Token()
 		sha=hashlib.sha1()
-		sha.update(str(uuid4()))
+		uuid_str=str(uuid4()).encode('utf-8')
+		sha.update(uuid_str)
 		token.id=sha.hexdigest()
 		token.tenant_id=tenant.id
 		session.add(token)
@@ -235,7 +236,7 @@ def generate_token(username,passwd):
 	return token_id
 
 def get_token_by_id(token_id):
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	token=None
 	try:
 		session.begin()
@@ -257,7 +258,7 @@ def validate_token(token):
 	return True
 
 def clean_invalid_token():
-	session=E3DBSession()
+	session=E3COMMONDBSession()
 	try:
 		session.begin()
 		tokens=session.query(Token).all()
@@ -275,21 +276,21 @@ def clean_invalid_token():
 if __name__=='__main__':
 	init_e3common_database('mysql+pymysql://e3net:e3credientials@localhost/E3common',True)
 	create_e3common_database_entries()
-	#print register_role('member')
+	print(register_role('member'))
 	#print register_role('admin',desc='administrator role')
 	#print register_role('__member__')
 	#print get_role_id_by_name('admin')
 	#unregister_role('admin')
 	#unregister_role('member')
-	#print register_tenant('jzheng1','181218zj',desc='my beloved',role_id=get_role_id_by_name('admin'))
+	print(register_tenant('jzheng1','181218zj',desc='my beloved',role_id=get_role_id_by_name('admin')))
 	#print find_tenant_by_name('jzheng')
 	#print get_role_by_id('78eeab15-3118-4fac-aa3d-2ab6f8a920d0')
 	#print get_role_by_id('c6bf5a3b-6159-4167-a6b7-91499a74ec2a')
 	#print get_tenant_by_id('98761cbc-0c6f-40ce-a274-2b896f5809ad')
 	#print disable_tenant('98761cbc-0c6f-40ce-a274-2b896f5809ad')
 	#print unregister_tenant('447c2cb9-eb7e-4f25-b821-5ffa503b87c8')
-	#print generate_token('jzheng','181218zj') 
+	print(generate_token('jzheng1','181218zj'))
 	#print validate_token(get_token_by_id('a564f7e86682f6b1ff50ded5f3e7968d2cc46ca2')) 
-	#print validate_token(get_token_by_id(generate_token('jzheng','181218zj')))
+	#print(validate_token(get_token_by_id(generate_token('jzheng1','181218zj'))))
 	#print generate_token('jzheng','181218zjs')
 	clean_invalid_token()
