@@ -1,7 +1,7 @@
 from e3net.e3compute.DBCompute import *
 from uuid import uuid4
 import json
-
+from datetime import datetime
 
 class Host(E3COMPUTEDBBase):
 	__tablename__='host'
@@ -19,6 +19,23 @@ class Host(E3COMPUTEDBBase):
 		obj['host_ip']=self.host_ip
 		return str(obj)
 
+class Image(E3COMPUTEDBBase):
+	__tablename__='image'
+	
+	id=Column(String(64),primary_key=True)
+	name=Column(String(64),nullable=False,index=True,unique=True)
+	size=Column(Integer(),nullable=False)
+	description=Column(Text,nullable=True)
+	created_at=Column(DateTime(),nullable=False,default=datetime.now)
+	
+	def __repr__(self):
+		obj=dict()
+		obj['id']=self.id
+		obj['name']=self.name
+		obj['size']=self.size
+		obj['description']=self.description
+		obj['created_at']=self.created_at.ctime()
+		return str(obj)
 '''
 class Interface(E3COMPUTEDBBase):
 	__tablename__='interface'
@@ -106,7 +123,11 @@ def unregister_host(id):
 			session.commit()
 			return True
 		return False
-	try:
+	except:
+		session.rollback()
+		return False
+	finally:
+		session.close()
 if __name__=='__main__':
 	init_e3compute_database('mysql+pymysql://e3net:e3credientials@localhost/E3compute',True)
 	create_e3compute_database_entries()
