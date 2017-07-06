@@ -1,0 +1,83 @@
+#! /bin/bash
+# this shell script is to manipulate zfs filesystem
+lxcpool='lxcpool'
+
+
+#
+# get lxcpool's total size in Gigabytes
+#
+#
+get_total_size()
+{
+    size_str=`zpool list  |grep "^$lxcpool " |tr -s ' ' |cut -d ' ' -f2`
+    if [[ "$size_str" == *G ]] ; then
+        echo  `echo $size_str | tr -d "G"`
+    else 
+        echo 0
+    fi
+}
+
+get_used_size()
+{
+    total=0
+    for item in `zfs get quota  |grep "^$lxcpool/"  |tr -s ' ' |cut -d ' ' -f 3`
+    do
+        if [[ "$item" != *G ]] ; then
+            continue
+        fi
+        quota=`echo $item | tr -d "G"`
+        total=`awk "BEGIN {print $total+$quota}"`
+    done
+    echo $total
+}
+
+get_free_size()
+{
+    total=$(get_total_size)
+    used=$(get_used_size)
+    cmp_rc=`awk "BEGIN {print $used < $total}"`
+    if [ "$cmp_rc" -eq 1 ] ; then
+        echo `awk "BEGIN {print  $total-$used}"`
+    else
+        echo 0
+    fi
+}
+
+alloc_filesystem()
+{
+    #$1:filesystem
+    #$2:mountpoint
+    #$3:size in Gigabytes
+    if [ ! $# -eq 3 ] ; then
+        return 1
+    fi
+    free_size=$(get_free_size)
+    cmp_rc=`awk "BEGIN {print $3 < $free_size}"`
+    if [ ! $cmp_rc -eq 1 ] ; then
+        return 2
+    fi
+    
+    zfs list |grep "^$lxcpool/$1 " >/dev/null
+    if [ $? -eq 0 ] ; then
+        return 3
+    fi
+    
+    zfs create -o mountpoint=$2 $lxcpool/$1
+    if [ ! $? -eq 0 ] ; then
+        return 4
+    fi
+
+    zfs set quota=$3G $lxcpool/$1
+    if [ ! $? -eq 0 ] ; then
+i       return 5
+    fi 
+}
+used=$(get_free_size)
+echo $used
+
+alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242e /var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242e 1.4
+
+alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242f /var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242f 2.6
+echo $?
+
+
