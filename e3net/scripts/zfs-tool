@@ -69,15 +69,44 @@ alloc_filesystem()
 
     zfs set quota=$3G $lxcpool/$1
     if [ ! $? -eq 0 ] ; then
-i       return 5
+       return 5
     fi 
 }
+
+
+exist_filesystem()
+{
+	#$1:filesystem
+        if [ ! $# -eq 1 ] ; then
+                return 1
+        fi
+	zfs list |grep "^$lxcpool/$1 " >/dev/null
+}
+
+
+dealloc_filesyste()
+{
+	#$1:filesystem
+	if [ ! $# -eq 1 ] ; then
+		return 1
+	fi
+	
+	zfs list |grep "^$lxcpool/$1 " >/dev/null
+	if [ ! $? -eq 0 ] ; then
+		return 2
+	fi
+	
+	zfs destroy $lxcpool/$1 #2&>/dev/null
+	if [ ! $? -eq 0 ] ; then
+		return 3
+	fi
+}
+
 used=$(get_free_size)
 echo $used
-
-alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242e /var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242e 1.4
-
-alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242f /var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242f 2.6
-echo $?
-
-
+#alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba2424 /usr/var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242e 15
+#alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242e /usr/var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242e 1.4
+#alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242f /usr/var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242f 2.6
+#dealloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242f
+exist_filesystem 709200a0-8e89-4885-bee9-ebde78ba2425
+exit $?
