@@ -1,7 +1,7 @@
 #! /bin/bash
 # this shell script is to manipulate zfs filesystem
 lxcpool='lxcpool'
-
+lxcdir='/usr/var/lib/lxc/'
 
 #
 # get lxcpool's total size in Gigabytes
@@ -46,13 +46,13 @@ get_free_size()
 alloc_filesystem()
 {
     #$1:filesystem
-    #$2:mountpoint
+    #$2:mountpoint,deprecated...
     #$3:size in Gigabytes
-    if [ ! $# -eq 3 ] ; then
+    if [ ! $# -eq 2 ] ; then
         return 1
     fi
     free_size=$(get_free_size)
-    cmp_rc=`awk "BEGIN {print $3 < $free_size}"`
+    cmp_rc=`awk "BEGIN {print $2 < $free_size}"`
     if [ ! $cmp_rc -eq 1 ] ; then
         return 2
     fi
@@ -62,14 +62,15 @@ alloc_filesystem()
         return 3
     fi
     
-    zfs create -o mountpoint=$2 $lxcpool/$1
+    zfs create -o mountpoint=$lxcdir$1 $lxcpool/$1
     if [ ! $? -eq 0 ] ; then
         return 4
     fi
 
-    zfs set quota=$3G $lxcpool/$1
+    zfs set quota=$2G $lxcpool/$1
     if [ ! $? -eq 0 ] ; then
-       return 5
+        zfs destroy $lxcpool/$1
+        return 5
     fi 
 }
 
@@ -84,7 +85,7 @@ exist_filesystem()
 }
 
 
-dealloc_filesyste()
+dealloc_filesystem()
 {
 	#$1:filesystem
 	if [ ! $# -eq 1 ] ; then
@@ -102,11 +103,56 @@ dealloc_filesyste()
 	fi
 }
 
-used=$(get_free_size)
-echo $used
+list_filesystems()
+{   
+    start=0
+    for f in `zfs list  |grep "^$lxcpool/" |cut -d ' ' -f1   |sed 's=^[a-zA-Z0-9]*/==g'`
+    do
+        if [ $start -eq 0 ] ; then
+            start=1
+        else
+            printf '#'
+        fi
+        printf "$f"
+    done
+}
+
+
+#used=$(get_free_size)
+#echo $used
 #alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba2424 /usr/var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242e 15
 #alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242e /usr/var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242e 1.4
 #alloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242f /usr/var/lib/lxc/709200a0-8e89-4885-bee9-ebde78ba242f 2.6
 #dealloc_filesystem 709200a0-8e89-4885-bee9-ebde78ba242f
-exist_filesystem 709200a0-8e89-4885-bee9-ebde78ba2425
-exit $?
+#exist_filesystem 709200a0-8e89-4885-bee9-ebde78ba2425
+#echo $used
+#exit 23
+
+if [ $# -lt 1 ] ; then 
+    exit 1
+fi
+
+case $1 in
+    free_size)
+        free=$(get_free_size)
+        printf $free
+    ;;
+    list_fs)
+        list_filesystems
+    ;;
+    create_fs)
+        shift
+        alloc_filesystem $@
+    ;;
+    delete_fs)
+        shift
+        dealloc_filesystem $@
+    ;;
+    exist_fs):
+        shift
+        exist_filesystem $@
+    ;;
+    *)
+        exit 2
+    ;;
+esac
