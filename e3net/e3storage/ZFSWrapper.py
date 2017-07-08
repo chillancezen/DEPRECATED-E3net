@@ -14,7 +14,10 @@ def zfs_free_size():
 def zfs_list_fs():
     try:
         lst_str=subprocess.check_output([zfs_script,'list_fs'])
-        lst=str(lst_str).split("#")
+        lst_str=lst_str.decode('utf-8')
+        if lst_str == '':
+            return list()
+        lst=lst_str.split("#")
         return lst
     except:
         return list()
@@ -37,8 +40,9 @@ def zfs_delete_fs(fsname):
         return True
     except:
         return False
-print(zfs_delete_fs('missant232'))
-print(zfs_exist_fs('missant'))
-print(zfs_create_fs('missant1',1.4))
-print(zfs_free_size())
-print(zfs_list_fs())
+#print(zfs_delete_fs('missant1'))
+#print(zfs_exist_fs('missant1'))
+#print(zfs_create_fs('missant1',1.4))
+#print(zfs_create_fs('missant2',3))
+#print(zfs_free_size())
+#print(zfs_list_fs())
