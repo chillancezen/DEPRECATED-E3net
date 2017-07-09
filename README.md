@@ -1,4 +1,6 @@
-# E3Token
-😘a simplified central Authentication Service Implementation
+# E3net orchestration platform
+😘
 
-feel so sorry for the project name, since it contains much more codes than CAS, it should be substituted 
+-  a simplified central Authentication Service Implementation
+
+-  lxc orchestration with compute/storage/network services
