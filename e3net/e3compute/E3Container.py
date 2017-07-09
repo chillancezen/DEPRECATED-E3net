@@ -4,7 +4,13 @@ from e3net.e3compute.E3COMPUTEHost import *
 from uuid import uuid4
 import json
 from datetime import datetime
+from e3net.e3common.E3LOG import get_e3loger
+from e3net.e3common.E3MQ import E3MQClient
 
+e3log=get_e3loger('e3compute')
+mq_scheduler=E3MQClient(queue_name='e3-scheduler-mq',
+                        user='e3net',
+                        passwd='e3credentials')
 
 class Container(E3COMPUTEDBBase):
     __tablename__='container'
@@ -18,7 +24,7 @@ class Container(E3COMPUTEDBBase):
     host=Column(String(64),nullable=True) #the chosen host to accommodate target container
 
     container_status=Column(Enum('unknown','running','stopped'),nullable=False,default='unknown')
-    task_status=Column(Enum('created','spawning','deployed'),nullable=False,default='created')
+    task_status=Column(Enum('created','spawning','deployed','failed'),nullable=False,default='created')
 
     tenant_id=Column(String(64),nullable=False) # not constrained to tenant.id since it resides in other table
     def __repr__(self):
@@ -34,6 +40,22 @@ class Container(E3COMPUTEDBBase):
         obj['tenant_id']=self.tenant_id
         obj['created_at']=self.created_at.ctime()
         return str(obj)
+
+def set_e3container_status(id,status):
+    session=E3COMPUTEDBSession()
+    try:
+        session.begin()
+        container=session.query(Container).filter(Container.id==id).first()
+        if not container:
+            return False
+        container.task_status=status
+        session.commit()
+        return True
+    except:
+        session.rollback()
+        return False
+    finally:
+        session.close()
 
 def register_e3container(tenant_id,name,image_id,flavor_id,desc=''):
     session=E3COMPUTEDBSession()
@@ -51,6 +73,16 @@ def register_e3container(tenant_id,name,image_id,flavor_id,desc=''):
         session.add(container)
         session.commit()
         # notify scheduler to find a host and network area to boot the container
+        msg=dict()
+        msg['action']='boot'
+        msg['container_id']=container.id
+        msg=json.dumps(msg)
+        enqueue_rc=mq_scheduler.enqueue_message(str(msg))
+        if not enqueue_rc:
+            e3log.error('sending message:%s to scheduler fails'%(str(msg)))
+            set_e3container_status(container.id,'failed')
+        else:
+            e3log.info('sending message:%s to scheduler succeeds'%(str(msg)))
         return True
     except:
         session.rollback()
@@ -121,11 +153,11 @@ if __name__=='__main__':
     
 
     #print(get_e3container_by_id('33629f72-789d-4749-ba6b-60e427bf2316'))
-    print(get_e3containers())
-''' 
+    #print(get_e3containers())
+ 
     print(register_e3container('2c90d294-34b0-43bd-8c95-d716f87f829f',
                         'vrouter1',
                         image_id='936e3279-870a-492b-807e-6196b241c181',
                         flavor_id='ff9d853e-2376-4915-8525-6aa2e3df7d6f',
                         desc='a virtual router prototype'))
-'''
+
