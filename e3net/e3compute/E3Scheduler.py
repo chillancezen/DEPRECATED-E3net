@@ -26,7 +26,7 @@ def boot_container_bottom_half(data):
     #allocate the network resource
     #allocate the compute resource
 
-    print(flavor)
+    print(image)
     pass
 def boot_container(msg):
     if 'container_id' not in msg:
