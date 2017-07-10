@@ -1,0 +1,17 @@
+my-ip:
+ 10.0.2.15
+e3fabric-gw-ip:
+ 10.0.2.1
+e3fabric-ip:
+ 169.254.169.254
+cpus:
+ - 0
+ - 1
+ - 2
+mems:
+ 2000
+
+etcd-ip:
+ 10.0.2.15
+etcd-port:
+ 2379

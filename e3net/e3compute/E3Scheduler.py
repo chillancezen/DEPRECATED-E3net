@@ -1,5 +1,6 @@
 #! /usr/bin/python3
 import json
+import concurrent.futures
 from e3net.e3common.E3MQ import E3MQClient
 from e3net.e3common.E3LOG import get_e3loger
 from e3net.e3compute.E3Container import get_e3container_by_id ,set_e3container_status
@@ -11,8 +12,22 @@ cheduler=E3MQClient(queue_name='e3-scheduler-mq',
                         user='e3net',
                         passwd='e3credentials')
 
+sequential_executor=concurrent.futures.ThreadPoolExecutor(max_workers=1)
+concurrent_executor=concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
+def boot_container_bottom_half(data):
+    container=data['container']
+    image=data['image']
+    flavor=data['flavor']
 
+    #to-do:select an host according to the flavor(compute)&network requirment 
+    #and run the container on the target host
+    #here we still randomly choose one host
+    #allocate the network resource
+    #allocate the compute resource
+
+    print(flavor)
+    pass
 def boot_container(msg):
     if 'container_id' not in msg:
         return 
@@ -35,10 +50,12 @@ def boot_container(msg):
         e3log.info('container(id:%s) is spawning'%(container_id))
     else:
         e3log.error('can not set container(id:%s) to status:spawning,task terminated'%(container_id)) 
-        return 
-    pass
-
-
+        return
+    try:
+        sequential_executor.submit(boot_container_bottom_half,{'container':container,'image':image,'flavor':flavor})
+    except:
+        e3log.error('errors occur when submitting bottom half task of booting container(id:%s)'%(container_id))
+    
 def start_container(msg):
     pass
 def stop_container(msg):
