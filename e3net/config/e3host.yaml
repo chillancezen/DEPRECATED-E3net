@@ -15,3 +15,10 @@ etcd-ip:
  10.0.2.15
 etcd-port:
  2379
+minio:
+ key: 'e3net'
+ secret: 'e3credentials'
+image-server-ip:
+ 10.0.2.15
+image-server-port:
+ 9000
