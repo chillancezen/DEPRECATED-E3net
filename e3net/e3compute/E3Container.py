@@ -156,8 +156,8 @@ if __name__=='__main__':
     #print(get_e3containers())
  
     print(register_e3container('2c90d294-34b0-43bd-8c95-d716f87f829f',
-                        'vrouter1',
-                        image_id='9c1de662-c4a9-40d7-8d20-04eee4696e93',
+                        'meeeow\'s host',
+                        image_id='c25416ce-72a7-415b-aa1a-9e3b365cded3',
                         flavor_id='2596e033-3bdb-4805-a181-0aebbe542060',
                         desc='a virtual router prototype'))
 

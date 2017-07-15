@@ -312,7 +312,8 @@ def unregister_host(id):
 if __name__=='__main__':
     init_e3compute_database('mysql+pymysql://e3net:e3credientials@localhost/E3compute',True)
     create_e3compute_database_entries()
-    print(register_e3image('vnf.base.image',593940480,sha1sum='0ae2b1a243ff0528626c1ab73ff13f01e66d3c74',desc='the base image for all VNFs'))
+    print(register_e3image('vnf.alpine.image',593940480,sha1sum='ed7c076f98318f9d714cbf87dca0d2c0a14c0d45',desc='a minimum image for debuging purpose'))
+    #print(register_e3image('vnf.base.image',593940480,sha1sum='0ae2b1a243ff0528626c1ab73ff13f01e66d3c74',desc='the base image for all VNFs'))
     #print(register_e3host('nfv-volume','10.0.2.15',desc='a compute host'))
     #print(register_e3host('server-67','130.140.150.65',desc='controoler'))
     #print(register_e3host('server-66','130.140.150.65',desc='computer'))

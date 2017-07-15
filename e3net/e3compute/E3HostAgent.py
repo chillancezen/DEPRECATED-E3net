@@ -1,7 +1,6 @@
 #! /usr/bin/python3
 #once agent start, call api to register this host, do not directly manipulate database
 import os
-import etcd
 import yaml
 import sys
 import platform
@@ -13,7 +12,7 @@ from e3net.e3common.E3LOG import get_e3loger
 from e3net.e3common.E3CFG import get_e3config
 from e3net.e3storage.ZFSWrapper import *
 from e3net.e3common.E3MQ import E3MQClient
-
+from e3net.e3compute.E3ComputeEtcd import *
 from minio import Minio
 from minio.error import ResponseError
 import hashlib
@@ -22,12 +21,12 @@ e3log=get_e3loger('e3hostagent')
 e3cfg=get_e3config('e3host')
 
 config_filepath='/etc/e3net/e3host.yaml'
-etcd_client=None
+#etcd_client=None
 
 #make sure image directory exist
 make_sure_dir_exist(image_host_dir)
 
-
+'''
 def _etc_set_key(key,value):
     try:
         etcd_client.write(key,value)
@@ -91,7 +90,7 @@ def etcd_unregister_host(host):
         return True
     except:
         return False
-'''
+
 def pull_image(image_name,host,port=5070,force_pull=False):
     url='http://%s:%d/%s'%(host,port,image_name)
     local_file='%s/%s'%(image_host_dir,image_name)
@@ -261,14 +260,32 @@ def host_agent_callback_func(ch,method,properties,body):
 if __name__=='__main__':
     #imagine we already know the uuid of the host
     host_uuid='f1f39bfd-7be3-49b3-a520-ecb28943a4d5'
-    #host_uuid='17ae3081-7353-41aa-aab8-7cd03797c2f9'
+    e3cfg['uuid']=host_uuid
+    e3cfg['hostname']=platform.node()
+    #print(init_etcd_session(e3cfg['etcd-ip'],e3cfg['etcd-port']))
+    #print(etcd_allocate_cpus_for_container(host_uuid,'container-id-jsdsjdhs',3))
+    #print(etcd_get_cpus_by_container_id(host_uuid,'container-id-jsdsjdhs'))
+    #print(etcd_assign_container_cpu(host_uuid,'container-id-jsdsjdhs',2))
+    #print(etcd_assign_container_cpu(host_uuid,'container-id-jsdsjdhs',0))
+    #print(etcd_get_free_cpus(host_uuid))
+    #print(etcd_release_cpus_of_container(host_uuid,'container-id-jsdsjdhs')) 
+    #print(etcd_get_cpus_by_container_id(host_uuid,'container-id-jsdsjdhs'))
+    #print(etcd_get_free_cpus(host_uuid))
+    #print(etcd_assign_container_cpu(host_uuid,'container-id-jsdsjdhs',2))
+    #print(etcd_allocate_memory(host_uuid,512))
+    #print(etcd_update_disk(host_uuid))
+    #print(_etc_get_children('/host/f1f39bfd-7be3-49b3-a520-ecb28943a4d5/cpus'))
+    #print(etcd_get_hosts())
+    #print(etcd_register_host(e3cfg))
+    #print(etcd_get_hosts())
+    #print(etcd_unregister_host('f1f39bfd-7be3-49b3-a520-ecb28943a4d5'))
     mq_client=E3MQClient(queue_name='host-%s'%(host_uuid),user='e3net',passwd='e3credentials')
     mq_client.start_dequeue(host_agent_callback_func)
     #config=e3cfg
     #config['uuid']=host_uuid
     #config['hostname']=platform.node()
     #print(e3cfg)
-    #print(init_etcd_session(config))
+    #print(init_etcd_session(e3cfg))
     #print(etcd_register_host(config))
     #print(etcd_get_hosts())
     #print(etcd_unregister_host(host_uuid+''))
