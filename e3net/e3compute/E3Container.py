@@ -157,7 +157,7 @@ if __name__=='__main__':
  
     print(register_e3container('2c90d294-34b0-43bd-8c95-d716f87f829f',
                         'vrouter1',
-                        image_id='ae7ba44d-4da1-4e8b-9adf-e5288db1df8a',
+                        image_id='9c1de662-c4a9-40d7-8d20-04eee4696e93',
                         flavor_id='2596e033-3bdb-4805-a181-0aebbe542060',
                         desc='a virtual router prototype'))
 

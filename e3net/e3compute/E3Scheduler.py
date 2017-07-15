@@ -7,26 +7,42 @@ from e3net.e3compute.E3Container import get_e3container_by_id ,set_e3container_s
 from e3net.e3compute.DBCompute import init_e3compute_database
 from e3net.e3compute.E3COMPUTEHost import get_e3image_by_id
 from e3net.e3compute.E3COMPUTEHost import get_e3flavor_by_id
+from e3net.e3compute.E3COMPUTEHost import get_e3host_by_name
+
 e3log=get_e3loger('e3scheduler')
 cheduler=E3MQClient(queue_name='e3-scheduler-mq',
                         user='e3net',
                         passwd='e3credentials')
+hostmq=E3MQClient(queue_name=None,user='e3net',passwd='e3credentials')
 
 sequential_executor=concurrent.futures.ThreadPoolExecutor(max_workers=1)
 concurrent_executor=concurrent.futures.ThreadPoolExecutor(max_workers=5)
+
+#hostagent message queue format:host-<uuid>
+
+
 
 def boot_container_bottom_half(data):
     container=data['container']
     image=data['image']
     flavor=data['flavor']
-
+    
     #to-do:select an host according to the flavor(compute)&network requirment 
     #and run the container on the target host
     #here we still randomly choose one host
     #allocate the network resource
     #allocate the compute resource
-
-    print(image)
+    
+    host=get_e3host_by_name('nfv-volume')
+    mq_id='host-%s'%(host.id)
+    msg=dict()
+    msg['action']='boot'
+    msg['body']=str(data)
+    rc=hostmq.enqueue_message(msg=str(msg),queue_another=mq_id)
+    if rc :
+        e3log.info('distribute container(id:%s) booting message to host(name:%s) succeeds',container.id,host.name)
+    else:
+        e3log.info('distribute container(id:%s) booting message to host(name:%s) fails',container.id,host.name)
     pass
 def boot_container(msg):
     if 'container_id' not in msg:

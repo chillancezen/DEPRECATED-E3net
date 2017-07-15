@@ -1,8 +1,10 @@
 #! /usr/bin/python3
 import pika
 import time
+from threading import Lock
 
 class E3MQClient():
+    # note that queue_name is None,no queue is declared
     def __init__(self,queue_name,user,passwd,host='127.0.0.1',port=5672):
         self.user=user
         self.passwd=passwd
@@ -10,7 +12,7 @@ class E3MQClient():
         self.port=port
         self.queue_name=queue_name
         self.is_connected=self._connect()
- 
+        self.lock=Lock() 
     def _connect(self):
         try: 
             self.conn=pika.BlockingConnection(
@@ -19,19 +21,26 @@ class E3MQClient():
                         credentials=pika.PlainCredentials(self.user,self.passwd),
                         port=self.port))
             self.channel=self.conn.channel()
-            self.channel.queue_declare(queue=self.queue_name)
+            if self.queue_name is not None:
+                self.channel.queue_declare(queue=self.queue_name)
             return True
         except:
             return False
 
-    def enqueue_message(self,msg):
+    #if we pass the parameter queue_another, the queue name will be replaced
+    def enqueue_message(self,msg,queue_another=None):
+        self.lock.acquire()
+        queue=self.queue_name
+        if queue_another:
+            queue=queue_another
         if self.is_connected == False:
             self.is_connected=self._connect()
         if self.is_connected == False:
+            self.lock.release()
             return False 
         try:
             self.channel.basic_publish(exchange='',
-                    routing_key=self.queue_name,
+                    routing_key=queue,
                     body=msg,
                     properties=pika.BasicProperties(
                         delivery_mode=2))
@@ -41,6 +50,8 @@ class E3MQClient():
             return False
         except :
             return False
+        finally:
+            self.lock.release()
 
     def start_dequeue(self,callback,interval=1):
         self.callback_fun=callback
