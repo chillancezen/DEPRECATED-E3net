@@ -328,7 +328,7 @@ if __name__=='__main__':
     #print(get_e3image_by_name('ubuntu.lxc.vnf.image'))
     #print(unregister_e3image('8331c23d-d920-451b-b330-d44a53d544ea'))
     #print(unregister_e3image('0c1b5b9c-1b56-4076-bcd0-8440211a0253'))
-    #register_e3flavor('m2.vnf.flavor',cpus=2,mem=1024,disk=2,links=4)
+    register_e3flavor('m2.vnf.flavor',cpus=2,mem=512,disk=1,links=4)
     #print(get_e3flavor_by_id('5eaee41e-577c-4c28-9b06-9232777ae871'))
     #print(get_e3flavor_by_id('6f10b300-672b-47a9-ba6a-177a444c5e0'))
     #print(get_e3flavors())

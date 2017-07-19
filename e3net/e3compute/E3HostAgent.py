@@ -17,9 +17,9 @@ from minio import Minio
 from minio.error import ResponseError
 import hashlib
 import tarfile
+host_uuid=None
 e3log=get_e3loger('e3hostagent')
 e3cfg=get_e3config('e3host')
-
 config_filepath='/etc/e3net/e3host.yaml'
 #etcd_client=None
 
@@ -167,17 +167,39 @@ def extract_image_to_cotainer(image_name,container_id):
     container_dir='%s/%s'%(lxc_runtime_dir,container_id) 
     return extract_image(image_name,container_dir)
 
+
 def _initialize_container(param):
+    def _cpu_list_to_string(lst):
+        cpu_str=None
+        for cpu in lst:
+            if cpu_str==None:
+                cpu_str=str(cpu)
+            else:
+                cpu_str=cpu_str+','+str(cpu)
+        return cpu_str
     container=param['container']
+    flavor=param['flavor']
     try:
         c=lxc.Container(container['id'])
         c.set_config_item(key='lxc.rootfs',value='%s/%s/rootfs'%(lxc_runtime_dir,container['id']))
         c.set_config_item(key='lxc.utsname',value=container['name'])
+        cpu_lst=etcd_get_cpus_by_container_id(host_uuid,container['id'])
+        c.set_config_item(key='lxc.cgroup.cpuset.cpus',value=_cpu_list_to_string(cpu_lst)) 
+        c.set_config_item(key='lxc.cgroup.memory.limit_in_bytes',value='%sM'%(flavor['mem']))   
         c.save_config()
         return True
     except:
         return False 
     pass
+
+
+def _exist_container(container_id):
+    try:
+        c=lxc.Container(container_id)
+        return c.defined
+    except:
+        return False
+ 
 def boot_container_instance(data):
     try:
         param=ast.literal_eval(data)
@@ -191,8 +213,11 @@ def boot_container_instance(data):
     container=param['container']
     flavor=param['flavor']
     image=param['image']
-    #1:mount zfs for container
-
+    #0 check whether container exists
+    if _exist_container(container['id']):
+        e3log.warn('container:%s alrady exists'%(container['id']))
+        return
+    #1 mount zfs for container
     if float(zfs_free_size()) < float(flavor['disk']):
         e3log.error('host has no enough disk space(needed:%s quota:%s) for container(id:%s)'%(flavor['disk'],zfs_free_size(),container['id']))
         return
@@ -200,6 +225,7 @@ def boot_container_instance(data):
         if not zfs_create_fs(container['id'],flavor['disk']):
             e3log.error('can not create zfs for container(id:%s)'%(container['id']))
             return
+    etcd_update_disk(host_uuid) 
     e3log.info('zfs backed filesystem is ready for cotainer(id:%s name:%s)'%(container['id'],container['name']))
     #2 pull and validate images and then extract image to mounted fs
     rc=pull_image(image_name=image['name'],
@@ -210,6 +236,8 @@ def boot_container_instance(data):
                     force_pull=False)
     if rc == False:
         e3log.error('can not pull image(id:%s name:%s)'%(image['id'],image['name']))
+        zfs_delete_fs(container['id'])
+        etcd_update_disk(host_uuid) 
         return
     rc=validate_image(image_name=image['name'],sha1_sum=image['sha1sum'])
     if rc == False:
@@ -222,17 +250,26 @@ def boot_container_instance(data):
                             force_pull=True)
             if rc==False or validate_image(image_name=image['name'],sha1_sum=image['sha1sum']) is False:
                 e3log.error('can not prepare image(name:%s) for container(id:%s name:%s)'%(image['name'],container['id'],container['name']))
+                zfs_delete_fs(container['id'])
+                etcd_update_disk(host_uuid)
                 return
     e3log.info('image(id:%s name:%s) is ready for container(id:%s name:%s)'%(image['id'],image['name'],container['id'],container['name']))
     
     rc=extract_image_to_cotainer(image['name'],container['id'])
     if rc==False:
         e3log.error('extracting image(name:%s) to conatiner(id:%s)\'s filesystem fails'%(image['name'],container['id']))
-        retur
+        zfs_delete_fs(container['id'])
+        etcd_update_disk(host_uuid)
+        return
     e3log.info('image(id:%s name:%s) is extracted to container(id:%s name:%s)\'s filesystem'%(image['id'],image['name'],container['id'],container['name']))
     #3 initialize container options
     rc=_initialize_container(param)
-    pass
+    if rc is False:
+        e3log.error('error occurs during initializing container(id:%s)\' config'%(container['id']))
+        return False
+    
+        
+    return True
 def start_container_instance(data):
     pass
 def stop_container_instance(data):
@@ -262,7 +299,8 @@ if __name__=='__main__':
     host_uuid='f1f39bfd-7be3-49b3-a520-ecb28943a4d5'
     e3cfg['uuid']=host_uuid
     e3cfg['hostname']=platform.node()
-    #print(init_etcd_session(e3cfg['etcd-ip'],e3cfg['etcd-port']))
+    print(init_etcd_session(e3cfg['etcd-ip'],e3cfg['etcd-port']))
+    #print(etcd_get_free_disk(host_uuid))
     #print(etcd_allocate_cpus_for_container(host_uuid,'container-id-jsdsjdhs',3))
     #print(etcd_get_cpus_by_container_id(host_uuid,'container-id-jsdsjdhs'))
     #print(etcd_assign_container_cpu(host_uuid,'container-id-jsdsjdhs',2))
@@ -278,7 +316,10 @@ if __name__=='__main__':
     #print(etcd_get_hosts())
     #print(etcd_register_host(e3cfg))
     #print(etcd_get_hosts())
-    #print(etcd_unregister_host('f1f39bfd-7be3-49b3-a520-ecb28943a4d5'))
+    print(etcd_unregister_host('f1f39bfd-7be3-49b3-a520-ecb28943a4d5'))
+    print(etcd_register_host(e3cfg))
+   # print(etcd_get_free_disk(host_uuid))
+    #print((etcd_allocate_cpus_for_container(host_uuid,'f1f39bfd-7be3-49b3-a520-ecb28943a4d5',2)))
     mq_client=E3MQClient(queue_name='host-%s'%(host_uuid),user='e3net',passwd='e3credentials')
     mq_client.start_dequeue(host_agent_callback_func)
     #config=e3cfg

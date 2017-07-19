@@ -9,7 +9,7 @@ etcd_client=None
 def etcd_key_to_key(etcd_key):
     return etcd_key.split('/')[-1]
 
-def init_etcd_session(etcd_ip,etcd_port=2739):
+def init_etcd_session(etcd_ip,etcd_port=2379):
     global etcd_client
     try:
         etcd_client=etcd.Client(host=etcd_ip,port=etcd_port)
@@ -73,6 +73,12 @@ def etcd_register_host(config):
         return True
     except:
         return False
+def etcd_get_free_memory(host_id):
+    try:
+        mem=int(_etcd_get_value('/host/%s/mems'%(host_id)))
+        return mem
+    except:
+        return 0
 def etcd_allocate_memory(host_id,mem_to_alloc):
     mem=int(_etcd_get_value('/host/%s/mems'%(host_id)))
     if mem < mem_to_alloc :
@@ -89,6 +95,12 @@ def etcd_deallocate_memory(host_id,mem_to_dealloc):
         return False
     return True
 
+def etcd_get_free_disk(host_id):
+    current=_etcd_get_value('/host/%s/disks'%(host_id))
+    try:
+        return float(current)
+    except:
+        return 0
 def etcd_update_disk(host_id):
     size=float(zfs_free_size())
     if _etcd_set_key('/host/%s/disks'%(host_id),str(size)) is False:
