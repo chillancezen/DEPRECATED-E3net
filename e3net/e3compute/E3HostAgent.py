@@ -22,7 +22,7 @@ e3log=get_e3loger('e3hostagent')
 e3cfg=get_e3config('e3host')
 config_filepath='/etc/e3net/e3host.yaml'
 #etcd_client=None
-
+mq_scheduler_another=E3MQClient(queue_name='e3-scheduler-another-mq',user='e3net',passwd='e3credentials')
 #make sure image directory exist
 make_sure_dir_exist(image_host_dir)
 
@@ -199,7 +199,27 @@ def _exist_container(container_id):
         return c.defined
     except:
         return False
- 
+def _notify_scheduler(body):
+    msg=dict()
+    msg['action']='notify'
+    msg['body']=body
+    return mq_scheduler_another.enqueue_message(msg=str(msg))
+
+def notify_scheduler_boot_succeess(container_id):
+    body=dict()
+    body['prior_action']='boot'
+    body['status']='OK'
+    body['container_id']=container_id
+    return _notify_scheduler(body)
+
+def notify_scheduler_boot_failure(container_id,error_msg):
+    body=dict()
+    body['prior_action']='boot'
+    body['status']='FAIL'
+    body['msg']=error_msg
+    body['container_id']=container_id
+    return _notify_scheduler(body)
+
 def boot_container_instance(data):
     try:
         param=ast.literal_eval(data)
@@ -220,10 +240,12 @@ def boot_container_instance(data):
     #1 mount zfs for container
     if float(zfs_free_size()) < float(flavor['disk']):
         e3log.error('host has no enough disk space(needed:%s quota:%s) for container(id:%s)'%(flavor['disk'],zfs_free_size(),container['id']))
+        notify_scheduler_boot_failure(container['id'],'no enough disk space for continer')
         return
     if not zfs_exist_fs(container['id']):
         if not zfs_create_fs(container['id'],flavor['disk']):
             e3log.error('can not create zfs for container(id:%s)'%(container['id']))
+            notify_scheduler_boot_failure(container['id'],'creating zfs backed filesystem for container(id:%s)'%(container['id']))
             return
     etcd_update_disk(host_uuid) 
     e3log.info('zfs backed filesystem is ready for cotainer(id:%s name:%s)'%(container['id'],container['name']))
@@ -237,7 +259,8 @@ def boot_container_instance(data):
     if rc == False:
         e3log.error('can not pull image(id:%s name:%s)'%(image['id'],image['name']))
         zfs_delete_fs(container['id'])
-        etcd_update_disk(host_uuid) 
+        etcd_update_disk(host_uuid)
+        notify_scheduler_boot_failure(container['id'],'pulling image error')
         return
     rc=validate_image(image_name=image['name'],sha1_sum=image['sha1sum'])
     if rc == False:
@@ -252,6 +275,7 @@ def boot_container_instance(data):
                 e3log.error('can not prepare image(name:%s) for container(id:%s name:%s)'%(image['name'],container['id'],container['name']))
                 zfs_delete_fs(container['id'])
                 etcd_update_disk(host_uuid)
+                notify_scheduler_boot_failure(container['id'],'pulling image errors')
                 return
     e3log.info('image(id:%s name:%s) is ready for container(id:%s name:%s)'%(image['id'],image['name'],container['id'],container['name']))
     
@@ -260,16 +284,21 @@ def boot_container_instance(data):
         e3log.error('extracting image(name:%s) to conatiner(id:%s)\'s filesystem fails'%(image['name'],container['id']))
         zfs_delete_fs(container['id'])
         etcd_update_disk(host_uuid)
+        notify_scheduler_boot_failure(container['id'],'extracting image error')
         return
     e3log.info('image(id:%s name:%s) is extracted to container(id:%s name:%s)\'s filesystem'%(image['id'],image['name'],container['id'],container['name']))
     #3 initialize container options
     rc=_initialize_container(param)
     if rc is False:
+        zfs_delete_fs(container['id'])
+        etcd_update_disk(host_uuid)
         e3log.error('error occurs during initializing container(id:%s)\' config'%(container['id']))
+        notify_scheduler_boot_failure(container['id'],'initailizing container config error')
         return False
-    
-        
+    if notify_scheduler_boot_succeess(container['id']) is False:
+        e3log.error('can not notify scheduler that container(id:%s) is ready'%(container['id']))
     return True
+
 def start_container_instance(data):
     pass
 def stop_container_instance(data):

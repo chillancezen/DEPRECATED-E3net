@@ -1,0 +1,19 @@
+# etcd host& port
+etcd:
+ etcd_host:
+  '10.0.2.15'
+ etcd_port:
+  2379
+
+db_compute_connection:
+ 'mysql+pymysql://e3net:e3credientials@localhost/E3compute'
+rabbitmq:
+ rabbitmq_server_host:
+  '10.0.2.15'
+ rabbitmq_server_port:
+  5672
+ rabbitmq_user:
+  'e3net'
+ rabbitmq_passwd:
+  'e3credentials'
+

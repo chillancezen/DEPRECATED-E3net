@@ -1,5 +1,6 @@
 #! /usr/bin/python3
 import json
+import ast
 import concurrent.futures
 from e3net.e3common.E3MQ import E3MQClient
 from e3net.e3common.E3LOG import get_e3loger
@@ -12,20 +13,25 @@ from e3net.e3compute.E3COMPUTEHost import get_e3host_by_name
 from e3net.e3compute.E3ComputeEtcd import *
 
 e3log=get_e3loger('e3scheduler')
+
+'''
 scheduler=E3MQClient(queue_name='e3-scheduler-mq',
                         user='e3net',
                         passwd='e3credentials')
 scheduler_anothrt=E3MQClient(queue_name='e3-scheduler-another-mq',
                         user='e3net',
                         passwd='e3credentials')
-
-hostmq=E3MQClient(queue_name=None,user='e3net',passwd='e3credentials')
+'''
+hostmq=None #=E3MQClient(queue_name=None,user='e3net',passwd='e3credentials')
 
 sequential_executor=concurrent.futures.ThreadPoolExecutor(max_workers=1)
 concurrent_executor=concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
 #hostagent message queue format:host-<uuid>
 
+def assign_host_side_mq(mq):
+    global hostmq
+    hostmq=mq
 
 def _validate_image_and_flavor(data):
     image=data['image']
@@ -130,8 +136,49 @@ def start_container(msg):
     pass
 def stop_container(msg):
     pass
-def notify_controller(msg):
+
+def notify_boot_func(body):
+    container_id=body['container_id']
+    status=body['status']
+    
+    if status=='OK':
+        if set_e3container_status(container_id,'deployed') is False:
+            e3log.error('setting container(id:%s)\'s status to deployed fails'%(container_id))
+    elif status=='FAIL':
+        #reclaim the resource we allocated before
+        try:
+            container=get_e3container_by_id(container_id)
+            flavor=get_e3flavor_by_id(container.flavor_id)
+            host=get_e3host_by_name(container.host)
+            etcd_deallocate_memory(host.id,flavor.mem)
+            etcd_release_cpus_of_container(host.id,container.id) 
+        except Exception as e:
+            pass
+        set_e3container_status(container_id,'failed')
+        if 'msg' in body:
+            set_e3container_extra(container_id,body['msg'])
+   
+            
+def notify_start_func(body):
     pass
+def notify_stop_func(body):
+    pass
+
+notify_dist_table={
+    'boot':notify_boot_func,
+    'start':notify_start_func,
+    'stop':notify_stop_func,
+}
+
+def notify_controller(msg):
+    body=msg['body']
+    if 'prior_action' not in body:
+        return
+    prior_action=body['prior_action']
+    if prior_action not in notify_dist_table:
+        return
+    notify_dist_table[prior_action](body)
+ 
 
 dist_table={
 'boot':boot_container,
@@ -156,7 +203,7 @@ def e3scheduler_func(ch,method,properties,body):
     #if distributed routine does not race with other action, submit to consurrent worker
 def e3_scheduler_another_func(ch,method,properties,body):
     try:
-        msg=json.loads(body.decode("utf-8"))
+        msg=ast.literal_eval(body.decode("utf-8"))
     except:
         return
     if 'action' not in msg:
@@ -167,6 +214,10 @@ def e3_scheduler_another_func(ch,method,properties,body):
     another_dist_table[action](msg)
 
 if __name__=='__main__':
+    pass
+    '''
     print('init etcd:',init_etcd_session(etcd_ip='10.0.2.15',etcd_port=2379))
+    assign_host_side_mq(E3MQClient(queue_name=None,user='e3net',passwd='e3credentials'))
     init_e3compute_database('mysql+pymysql://e3net:e3credientials@localhost/E3compute')
     scheduler.start_dequeue(e3scheduler_func)
+    '''
