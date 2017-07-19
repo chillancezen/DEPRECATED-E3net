@@ -6,6 +6,7 @@ from e3net.e3common.E3MQ import E3MQClient
 from e3net.e3common.E3LOG import get_e3loger
 from e3net.e3compute.E3Container import get_e3container_by_id ,set_e3container_status
 from e3net.e3compute.E3Container import set_e3container_extra, set_e3container_host
+from e3net.e3compute.E3Container import set_e3container_running_status
 from e3net.e3compute.DBCompute import init_e3compute_database
 from e3net.e3compute.E3COMPUTEHost import get_e3image_by_id
 from e3net.e3compute.E3COMPUTEHost import get_e3flavor_by_id
@@ -109,7 +110,7 @@ def boot_container(msg):
     container_id=msg['container_id']
     container=get_e3container_by_id(container_id)
     if not container:
-        e3log.error('can not find container by id:%s'%(container_id))
+        e3log.error('can not find container by id:%s to boot'%(container_id))
         return
     image=get_e3image_by_id(container.image_id)
     flavor=get_e3flavor_by_id(container.flavor_id)
@@ -131,9 +132,27 @@ def boot_container(msg):
         sequential_executor.submit(boot_container_bottom_half,{'container':container,'image':image,'flavor':flavor})
     except:
         e3log.error('errors occur when submitting bottom half task of booting container(id:%s)'%(container_id))
-    
+
+
 def start_container(msg):
-    pass
+    container_id=msg['container_id']
+    container=get_e3container_by_id(container_id)
+    if not container:
+        e3log.error('can not find container by id:%s to start it'%(container_id))
+        return
+    host=get_e3host_by_name(container.host)
+    if not host:
+        e3log.error('can not find host by name:%s to start continer'%(container.host))
+        return
+    mq_id='host-%s'%(host.id)
+    msg['action']='start'
+    msg['body']={'container_id':container.id}
+    rc=hostmq.enqueue_message(msg=str(msg),queue_another=mq_id)
+    if rc is True:
+        e3log.info('distributing container(id:%s) starting message to host(name:%s) succeeds'%(container.id,host.name))
+    else:
+        e3log.info('distributing container(id:%s) starting message to host(name:%s) fails'%(container.id,host.name))
+
 def stop_container(msg):
     pass
 
@@ -160,7 +179,13 @@ def notify_boot_func(body):
    
             
 def notify_start_func(body):
-    pass
+    container_id=body['container_id']
+    status=body['status']
+    
+    if status=='OK':
+        set_e3container_running_status(container_id,'running')
+    elif status=='FAIL':
+        set_e3container_running_status(container_id,'stopped')
 def notify_stop_func(body):
     pass
 

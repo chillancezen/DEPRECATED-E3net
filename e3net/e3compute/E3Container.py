@@ -45,6 +45,22 @@ class Container(E3COMPUTEDBBase):
         obj['extra']=self.extra
         return str(obj)
 
+def set_e3container_running_status(id,status):
+    session=E3COMPUTEDBSession()
+    try:
+        session.begin()
+        container=session.query(Container).filter(Container.id==id).first()
+        if not container:
+            return False
+        container.container_status=status
+        session.commit()
+        return True
+    except:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+    
 def set_e3container_status(id,status):
     session=E3COMPUTEDBSession()
     try:
@@ -149,6 +165,31 @@ def get_e3containers(tenant_id=None):
     finally:
         session.close()
     return lst
+def start_e3container(container_id):
+    session=E3COMPUTEDBSession()
+    try:
+        session.begin()
+        container=session.query(Container).filter(Container.id==container_id).first()
+        if not container:
+            return False
+        if container.task_status != 'deployed':
+            return False
+        
+        msg=dict()
+        msg['action']='start'
+        msg['container_id']=container.id
+        msg=json.dumps(msg)
+        enqueue_rc=mq_scheduler.enqueue_message(str(msg))
+        if enqueue_rc is False:
+            e3log.error('sending message:%s to scheduler fails'%(str(msg)))
+        else:
+            e3log.info('sending message:%s to scheduler succeeds'%(str(msg)))
+        return True
+    except:
+        return False
+    finally:
+        session.close()
+    pass
 def unregister_e3container_pre(container_id):
     session=E3COMPUTEDBSession()
     try:
@@ -180,7 +221,8 @@ def unregister_e3container_post(container_id):
         return False
     finally:
         session.close()
-    
+   
+
 if __name__=='__main__':
     init_e3compute_database('mysql+pymysql://e3net:e3credientials@localhost/E3compute',True)
     create_e3compute_database_entries()
@@ -191,7 +233,9 @@ if __name__=='__main__':
     #print(get_e3containers())
  
     #2596e033-3bdb-4805-a181-0aebbe542060
-    print(register_e3container('2c90d294-34b0-43bd-8c95-d716f87f829f',
+    print(start_e3container('e0c82a67-fd17-4447-9979-4544e09d94eb'))
+    if False:
+        print(register_e3container('2c90d294-34b0-43bd-8c95-d716f87f829f',
                         'meeeow\'s host',
                         image_id='c25416ce-72a7-415b-aa1a-9e3b365cded3',
                         flavor_id='f756d23e-d4ae-46ec-bce5-26134afd0451',#flavor_id='75f806c3-150b-4fb8-92b5-192f072b6b57',

@@ -299,10 +299,36 @@ def boot_container_instance(data):
         e3log.error('can not notify scheduler that container(id:%s) is ready'%(container['id']))
     return True
 
+def _start_container(container_id):
+    c=lxc.Container(container_id)
+    if c.defined is False:
+        return False
+    if c.start() is False:
+        return False
+    if c.wait('RUNNING',timeout=max_seconds_to_wait_lxc_container_state) is False:
+        return False
+    return True
+ 
 def start_container_instance(data):
-    pass
+    if 'container_id' not in data:
+        return
+    container_id=data['container_id']
+    start_rc=_start_container(container_id)
+    notify_msg=dict()
+    notify_msg['prior_action']='start'
+    notify_msg['container_id']=container_id
+    if start_rc is False:
+        notify_msg['status']='FAIL'
+        e3log.warn('starting container(%s) fails'%(container_id))
+    else:
+        notify_msg['status']='OK'
+        e3log.warn('starting container(%s) succeeds'%(container_id))
+    if _notify_scheduler(notify_msg) is False:
+        e3log.error('can not send notofication back for starting container(id:%s)'%(container_id))
+
 def stop_container_instance(data):
     pass
+
 action_table={
     'boot':boot_container_instance,
     'start':start_container_instance,

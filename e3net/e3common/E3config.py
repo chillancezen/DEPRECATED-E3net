@@ -14,6 +14,7 @@ lxc_runtime_dir='/var/lib/lxc'
 #e3net configuration directory 
 e3net_config_dir='/etc/e3net'
 
+max_seconds_to_wait_lxc_container_state=10 
 
 
 
