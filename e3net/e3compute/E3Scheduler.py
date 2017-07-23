@@ -6,7 +6,7 @@ from e3net.e3common.E3MQ import E3MQClient
 from e3net.e3common.E3LOG import get_e3loger
 from e3net.e3compute.E3Container import get_e3container_by_id ,set_e3container_status
 from e3net.e3compute.E3Container import set_e3container_extra, set_e3container_host
-from e3net.e3compute.E3Container import set_e3container_running_status
+from e3net.e3compute.E3Container import set_e3container_running_status,unregister_e3container_post
 from e3net.e3compute.DBCompute import init_e3compute_database
 from e3net.e3compute.E3COMPUTEHost import get_e3image_by_id
 from e3net.e3compute.E3COMPUTEHost import get_e3flavor_by_id
@@ -135,6 +135,8 @@ def boot_container(msg):
 
 
 def start_container(msg):
+    if 'container_id' not in msg:
+        return
     container_id=msg['container_id']
     container=get_e3container_by_id(container_id)
     if not container:
@@ -145,16 +147,58 @@ def start_container(msg):
         e3log.error('can not find host by name:%s to start continer'%(container.host))
         return
     mq_id='host-%s'%(host.id)
-    msg['action']='start'
-    msg['body']={'container_id':container.id}
-    rc=hostmq.enqueue_message(msg=str(msg),queue_another=mq_id)
+    _msg=dict()
+    _msg['action']='start'
+    _msg['body']={'container_id':container.id}
+    rc=hostmq.enqueue_message(msg=str(_msg),queue_another=mq_id)
     if rc is True:
         e3log.info('distributing container(id:%s) starting message to host(name:%s) succeeds'%(container.id,host.name))
     else:
-        e3log.info('distributing container(id:%s) starting message to host(name:%s) fails'%(container.id,host.name))
+        e3log.error('distributing container(id:%s) starting message to host(name:%s) fails'%(container.id,host.name))
 
 def stop_container(msg):
-    pass
+    if 'container_id' not in msg:
+        return
+    container_id=msg['container_id']
+    container=get_e3container_by_id(container_id)
+    if not container:
+        e3log.error('can not find container by id:%s to stop it'%(container_id))
+        return
+    host=get_e3host_by_name(container.host)
+    if not host:
+        e3log.error('can not find host by name:%s to stop continer'%(container.host))
+        return
+    mq_id='host-%s'%(host.id)
+    _msg=dict()
+    _msg['action']='stop'
+    _msg['body']={'container_id':container.id}
+    rc=hostmq.enqueue_message(msg=str(_msg),queue_another=mq_id)
+    if rc is True:
+        e3log.info('distributing container(id:%s) stopping message to host(name:%s) succeeds'%(container.id,host.name))
+    else:
+        e3log.error('distributing container(id:%s) stopping message to host(name:%s) fails'%(container.id,host.name)) 
+
+def destroy_container(msg):
+    if 'container_id' not in msg:
+        return
+    container_id=msg['container_id']
+    container=get_e3container_by_id(container_id)
+    if not container:
+        e3log.error('can not find container by id:%s to destroy it'%(container_id))
+        return
+    host=get_e3host_by_name(container.host)
+    if not host:
+        e3log.error('can not find host by name:%s to destroy continer'%(container.host))
+        return
+    mq_id='host-%s'%(host.id)
+    _msg=dict()
+    _msg['action']='destroy'
+    _msg['body']={'container_id':container.id}
+    rc=hostmq.enqueue_message(msg=str(_msg),queue_another=mq_id)
+    if rc is True:
+        e3log.info('distributing container(id:%s) destroying message to host(name:%s) succeeds'%(container.id,host.name))
+    else:
+        e3log.error('distributing container(id:%s) destroying message to host(name:%s) fails'%(container.id,host.name))
 
 def notify_boot_func(body):
     container_id=body['container_id']
@@ -186,13 +230,43 @@ def notify_start_func(body):
         set_e3container_running_status(container_id,'running')
     elif status=='FAIL':
         set_e3container_running_status(container_id,'stopped')
+
 def notify_stop_func(body):
-    pass
+    container_id=body['container_id']
+    status=body['status']
+    if status=='OK':
+        set_e3container_running_status(container_id,'stopped')
+    elif status=='FAIL':
+        set_e3container_running_status(container_id,'running')
+
+def notify_destory_func(body):
+    container_id=body['container_id']
+    status=body['status']
+    container=get_e3container_by_id(container_id)
+    if not container:
+        e3log.warn('can not find the container(id:%s) when releasing container in notification phaze'%(container_id))
+        return
+    host=get_e3host_by_name(container.host)
+    if not host:
+        e3log.warn('can not find the host(id:%s) when releasing container in notification phaze'%(container_id))
+        return
+    #1 release cpus resource right now
+    etcd_release_cpus_of_container(host.id,container.id)
+    #2 release memory resource 
+    flavor=get_e3flavor_by_id(container.flavor_id)
+    if flavor:
+        etcd_deallocate_memory(host.id,flavor.mem)
+    #3 delete database
+    if unregister_e3container_post(container.id) is False:
+        e3log.error('error occurs during deleting database entry for container(id:%s) fails'%(container.id))
+    else:
+        e3log.info(' deleting database entry for container(id:%s) succeeds'%(container.id))
 
 notify_dist_table={
     'boot':notify_boot_func,
     'start':notify_start_func,
     'stop':notify_stop_func,
+    'destroy':notify_destory_func,
 }
 
 def notify_controller(msg):
@@ -208,7 +282,8 @@ def notify_controller(msg):
 dist_table={
 'boot':boot_container,
 'start':start_container,
-'stop':stop_container
+'stop':stop_container,
+'destroy':destroy_container
 }
 
 another_dist_table={

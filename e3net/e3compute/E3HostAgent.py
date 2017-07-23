@@ -308,7 +308,28 @@ def _start_container(container_id):
     if c.wait('RUNNING',timeout=max_seconds_to_wait_lxc_container_state) is False:
         return False
     return True
- 
+def _stop_container(container_id):
+    c=lxc.Container(container_id)
+    if c.defined is False:
+        return False
+    if c.stop() is False:
+        return False
+    if c.wait('STOPPED',timeout=max_seconds_to_wait_lxc_container_state) is False:
+        return False
+    return True
+def _destroy_container(container_id):
+    c=lxc.Container(container_id)
+    if c.defined is False:
+        e3log.warn('container(id:%s) to be destroyed does not exist'%(container_id))
+        return False
+    c.stop()
+    c.wait('STOPPED',timeout=max_seconds_to_wait_lxc_container_state)
+    #1 delete the fs and then update etcd entry
+    if zfs_delete_fs(container_id) is False:
+        e3log.warn('container(id:%s) to be destroyed fails to delete its filesystem'%(container_id)) 
+    etcd_update_disk(host_uuid)
+    return True
+     
 def start_container_instance(data):
     if 'container_id' not in data:
         return
@@ -322,17 +343,48 @@ def start_container_instance(data):
         e3log.warn('starting container(%s) fails'%(container_id))
     else:
         notify_msg['status']='OK'
-        e3log.warn('starting container(%s) succeeds'%(container_id))
+        e3log.info('starting container(%s) succeeds'%(container_id))
     if _notify_scheduler(notify_msg) is False:
         e3log.error('can not send notofication back for starting container(id:%s)'%(container_id))
 
 def stop_container_instance(data):
+    if 'container_id' not in data:
+        return
+    container_id=data['container_id']
+    stop_rc=_stop_container(container_id)
+    notify_msg=dict()
+    notify_msg['prior_action']='stop'
+    notify_msg['container_id']=container_id
+    if stop_rc is False:
+        notify_msg['status']='FAIL'
+        e3log.warn('stopping container(%s) fails'%(container_id))
+    else :
+        notify_msg['status']='OK'
+        e3log.info('stopping container(%s) succeeds'%(container_id))
+    if _notify_scheduler(notify_msg) is False:
+        e3log.error('can not send notofication back for starting container(id:%s)'%(container_id))
+def destroy_container_instance(data):
+    if 'container_id' not in data:
+        return
+    container_id=data['container_id']
+    rc=_destroy_container(container_id)
+    notify_msg=dict()
+    notify_msg['prior_action']='destroy'
+    notify_msg['container_id']=container_id
+    if rc is False:
+        notify_msg['status']='FAIL'
+        e3log.warn('destroying container(%s) fails'%(container_id))
+    else:
+        notify_msg['status']='OK'
+        e3log.info('destroying container(%s) succeeds'%(container_id))
+    if _notify_scheduler(notify_msg) is False:
+        e3log.error('can not send notofication back for starting container(id:%s)'%(container_id))
     pass
-
 action_table={
     'boot':boot_container_instance,
     'start':start_container_instance,
     'stop':stop_container_instance,
+    'destroy':destroy_container_instance
 }
 
 def host_agent_callback_func(ch,method,properties,body):
